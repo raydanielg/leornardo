@@ -14,7 +14,57 @@ class YouTubeApiService {
   // Channel ID for @leonardobutindi
   static const String _channelId = 'UCF4nv3dU6kcCJ_5JjPWcuvA'; // Fetched via API
   
-  /// � Fetch ALL videos from channel - NO LIMIT! POWER! 💪
+  /// 🚀 Fetch videos with PAGINATION - FAST! First page = 20 videos
+  static Future<Map<String, dynamic>> fetchChannelVideosPaginated({
+    String? pageToken,
+    int maxResults = 20,
+  }) async {
+    List<Map<String, dynamic>> videos = [];
+    String? nextPageToken;
+    
+    try {
+      print('� Fetching videos page (max: $maxResults)...');
+      
+      // Step 1: Fetch video IDs from search
+      String searchUrl = '$_baseUrl/search?part=snippet&channelId=$_channelId&maxResults=$maxResults&order=date&type=video&key=$_apiKey';
+      if (pageToken != null) {
+        searchUrl += '&pageToken=$pageToken';
+      }
+      
+      final searchResponse = await http.get(Uri.parse(searchUrl));
+      
+      if (searchResponse.statusCode == 200) {
+        final searchData = json.decode(searchResponse.body);
+        final items = searchData['items'] as List<dynamic>;
+        nextPageToken = searchData['nextPageToken'];
+        
+        if (items.isNotEmpty) {
+          // Get video IDs
+          final videoIds = items.map((item) => item['id']['videoId'] as String).toList();
+          
+          // Step 2: Fetch statistics for these videos
+          videos = await _fetchVideosWithStatsByIds(videoIds);
+        }
+      } else {
+        print('❌ Search API Error: ${searchResponse.statusCode}');
+      }
+      
+      print('✅ Fetched ${videos.length} videos. Has more: ${nextPageToken != null}');
+      return {
+        'videos': videos,
+        'nextPageToken': nextPageToken,
+      };
+      
+    } catch (e) {
+      print('❌ Error fetching paginated videos: $e');
+      return {
+        'videos': videos,
+        'nextPageToken': null,
+      };
+    }
+  }
+  
+  /// 🔥 Fetch ALL videos from channel - NO LIMIT! POWER! 💪
   static Future<List<Map<String, dynamic>>> fetchChannelVideos() async {
     List<Map<String, dynamic>> allVideos = [];
     String? nextPageToken;
@@ -36,25 +86,15 @@ class YouTubeApiService {
           final data = json.decode(response.body);
           final items = data['items'] as List<dynamic>;
           
-          // Convert and add videos
-          final pageVideos = items.map((item) {
-            final snippet = item['snippet'];
-            return {
-              'videoId': item['id']['videoId'],
-              'title': snippet['title'],
-              'channel': snippet['channelTitle'],
-              'thumbnail': snippet['thumbnails']['high']?['url'] ?? 
-                          snippet['thumbnails']['medium']?['url'] ?? 
-                          snippet['thumbnails']['default']?['url'],
-              'publishedAt': snippet['publishedAt'],
-              'description': snippet['description'],
-            };
-          }).toList();
+          // Get video IDs and fetch statistics
+          if (items.isNotEmpty) {
+            final videoIds = items.map((item) => item['id']['videoId'] as String).toList();
+            final videosWithStats = await _fetchVideosWithStatsByIds(videoIds);
+            allVideos.addAll(videosWithStats);
+          }
           
-          allVideos.addAll(pageVideos);
           pageCount++;
-          
-          print('📄 Page $pageCount: ${pageVideos.length} videos fetched. Total: ${allVideos.length}');
+          print('📄 Page $pageCount: ${items.length} videos fetched. Total: ${allVideos.length}');
           
           // Get next page token
           nextPageToken = data['nextPageToken'];
@@ -77,6 +117,63 @@ class YouTubeApiService {
     } catch (e) {
       print('❌ Error fetching all videos: $e');
       return allVideos; // Return whatever we got
+    }
+  }
+  
+  /// 📊 Fetch videos with statistics by IDs (real views, duration, etc)
+  static Future<List<Map<String, dynamic>>> _fetchVideosWithStatsByIds(List<String> videoIds) async {
+    try {
+      if (videoIds.isEmpty) return [];
+      
+      // YouTube API allows max 50 IDs per request
+      final ids = videoIds.take(50).join(',');
+      
+      final response = await http.get(
+        Uri.parse(
+          '$_baseUrl/videos?part=snippet,statistics,contentDetails&id=$ids&key=$_apiKey',
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['items'] as List<dynamic>;
+        
+        return items.map((item) {
+          final snippet = item['snippet'];
+          final stats = item['statistics'];
+          final content = item['contentDetails'];
+          
+          // Format duration from PT4M13S to 4:13
+          String duration = _formatDuration(content['duration'] ?? 'PT0M0S');
+          
+          // Format view count - REAL VIEWS!
+          String views = _formatViewCount(stats['viewCount'] ?? '0');
+          
+          // Get best thumbnail
+          String thumbnail = snippet['thumbnails']['high']?['url'] ?? 
+                            snippet['thumbnails']['medium']?['url'] ?? 
+                            snippet['thumbnails']['default']?['url'];
+          
+          return {
+            'videoId': item['id'],
+            'title': snippet['title'],
+            'channel': snippet['channelTitle'],
+            'thumbnail': thumbnail,
+            'views': '$views views',
+            'duration': duration,
+            'publishedAt': snippet['publishedAt'],
+            'description': snippet['description'],
+            'likeCount': _formatViewCount(stats['likeCount'] ?? '0'),
+            'commentCount': _formatViewCount(stats['commentCount'] ?? '0'),
+          };
+        }).toList();
+      } else {
+        print('❌ Stats API Error: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Error fetching video stats: $e');
+      return [];
     }
   }
 
@@ -110,43 +207,6 @@ class YouTubeApiService {
       }
     } catch (e) {
       print('❌ Error fetching playlists: $e');
-      return [];
-    }
-  }
-
-  /// 🎬 Fetch videos kutoka specific playlist
-  static Future<List<Map<String, dynamic>>> fetchPlaylistVideos(
-    String playlistId, {
-    int maxResults = 20,
-  }) async {
-    try {
-      final response = await http.get(
-        Uri.parse(
-          '$_baseUrl/playlistItems?part=snippet&playlistId=$playlistId&maxResults=$maxResults&key=$_apiKey',
-        ),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final items = data['items'] as List<dynamic>;
-        
-        return items.map((item) {
-          final snippet = item['snippet'];
-          return {
-            'videoId': snippet['resourceId']['videoId'],
-            'title': snippet['title'],
-            'channel': snippet['channelTitle'],
-            'thumbnail': snippet['thumbnails']['high']?['url'] ?? 
-                        snippet['thumbnails']['medium']?['url'] ?? 
-                        snippet['thumbnails']['default']?['url'],
-            'position': snippet['position'],
-          };
-        }).toList();
-      } else {
-        throw Exception('Failed to fetch playlist videos: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('❌ Error fetching playlist videos: $e');
       return [];
     }
   }
@@ -373,6 +433,355 @@ class YouTubeApiService {
     } catch (e) {
       print('❌ Connection Error: $e');
       return false;
+    }
+  }
+
+  /// 🎬 Fetch Related Videos from Channel (exclude current video) - POA! 🔥
+  static Future<List<Map<String, dynamic>>> fetchRelatedVideos(
+    String currentVideoId, {
+    int maxResults = 20,
+  }) async {
+    try {
+      print('🎬 Fetching related videos (excluding: $currentVideoId)...');
+
+      // Fetch recent videos from channel
+      final searchResponse = await http.get(
+        Uri.parse(
+          '$_baseUrl/search?part=snippet&channelId=$_channelId&maxResults=${maxResults + 5}&order=date&type=video&key=$_apiKey',
+        ),
+      );
+
+      if (searchResponse.statusCode == 200) {
+        final searchData = json.decode(searchResponse.body);
+        final items = searchData['items'] as List<dynamic>;
+
+        // Filter out current video and get video IDs
+        final videoIds = items
+            .where((item) => item['id']['videoId'] != currentVideoId)
+            .take(maxResults)
+            .map((item) => item['id']['videoId'] as String)
+            .toList();
+
+        if (videoIds.isEmpty) return [];
+
+        // Fetch statistics for these videos
+        return await _fetchVideosWithStatsByIds(videoIds);
+      } else {
+        print('❌ Related videos API Error: ${searchResponse.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Error fetching related videos: $e');
+      return [];
+    }
+  }
+
+  /// 🎬 Fetch Reels (Shorts) - YouTube Shorts Style! 🔥
+  /// Videos with duration < 60 seconds
+  static Future<List<Map<String, dynamic>>> fetchReels({
+    int maxResults = 20,
+  }) async {
+    try {
+      print('🎬 Fetching Reels (Shorts)...');
+
+      // Fetch videos from channel
+      final searchResponse = await http.get(
+        Uri.parse(
+          '$_baseUrl/search?part=snippet&channelId=$_channelId&maxResults=50&order=date&type=video&key=$_apiKey',
+        ),
+      );
+
+      if (searchResponse.statusCode == 200) {
+        final searchData = json.decode(searchResponse.body);
+        final items = searchData['items'] as List<dynamic>;
+
+        // Get video IDs
+        final videoIds = items
+            .map((item) => item['id']['videoId'] as String)
+            .toList();
+
+        if (videoIds.isEmpty) return [];
+
+        // Fetch video details with contentDetails to check duration
+        final videosWithDetails = await _fetchVideosWithStatsByIds(videoIds);
+
+        // Filter short videos (duration < 60 seconds typically, but we check for shorts style)
+        // YouTube Shorts are typically vertical 9:16 and < 60 seconds
+        final reels = videosWithDetails.where((video) {
+          final duration = video['duration'] as String? ?? '0:00';
+          // Check if duration is short (less than 1 minute)
+          final parts = duration.split(':');
+          if (parts.length == 2) {
+            final minutes = int.tryParse(parts[0]) ?? 0;
+            return minutes == 0; // Less than 1 minute
+          }
+          return false;
+        }).take(maxResults).toList();
+
+        print('✅ Fetched ${reels.length} reels');
+        return reels;
+      } else {
+        print('❌ Reels API Error: ${searchResponse.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Error fetching reels: $e');
+      return [];
+    }
+  }
+
+  /// 💬 Fetch Comments for a Video - REAL DATA! 🔥
+  static Future<Map<String, dynamic>> fetchVideoComments(
+    String videoId, {
+    int maxResults = 50,
+    String? pageToken,
+  }) async {
+    try {
+      print('💬 Fetching comments for video: $videoId');
+
+      String url =
+          '$_baseUrl/commentThreads?part=snippet&videoId=$videoId&maxResults=$maxResults&key=$_apiKey';
+      if (pageToken != null) {
+        url += '&pageToken=$pageToken';
+      }
+
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['items'] as List<dynamic>? ?? [];
+        final nextPageToken = data['nextPageToken'] as String?;
+        final totalResults = data['pageInfo']?['totalResults'] ?? 0;
+
+        // Parse comments
+        final comments = items.map((item) {
+          final snippet = item['snippet']?['topLevelComment']?['snippet'] ?? {};
+
+          return {
+            'commentId': item['id'],
+            'text': snippet['textDisplay'] ?? snippet['textOriginal'] ?? '',
+            'authorName': snippet['authorDisplayName'] ?? 'Unknown',
+            'authorAvatar': snippet['authorProfileImageUrl'] ?? '',
+            'authorChannel': snippet['authorChannelUrl'] ?? '',
+            'likeCount': snippet['likeCount'] ?? 0,
+            'publishedAt': snippet['publishedAt'] ?? '',
+            'updatedAt': snippet['updatedAt'] ?? '',
+            'canReply': snippet['canReply'] ?? false,
+            'totalReplyCount': item['snippet']?['totalReplyCount'] ?? 0,
+          };
+        }).toList();
+
+        print('✅ Fetched ${comments.length} comments (Total: $totalResults)');
+
+        return {
+          'comments': comments,
+          'nextPageToken': nextPageToken,
+          'totalResults': totalResults,
+        };
+      } else {
+        print('❌ Comments API Error: ${response.statusCode}');
+        print('Response: ${response.body}');
+        return {
+          'comments': [],
+          'nextPageToken': null,
+          'totalResults': 0,
+        };
+      }
+    } catch (e) {
+      print('❌ Error fetching comments: $e');
+      return {
+        'comments': [],
+        'nextPageToken': null,
+        'totalResults': 0,
+      };
+    }
+  }
+
+  /// 📋 Fetch Playlists from Channel - REAL DATA! 🔥
+  static Future<List<Map<String, dynamic>>> fetchChannelPlaylists({
+    int maxResults = 50,
+  }) async {
+    try {
+      print('📋 Fetching channel playlists...');
+
+      final response = await http.get(
+        Uri.parse(
+          '$_baseUrl/playlists?part=snippet,contentDetails&channelId=$_channelId&maxResults=$maxResults&key=$_apiKey',
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['items'] as List<dynamic>? ?? [];
+
+        final playlists = items.map((item) {
+          final snippet = item['snippet'] ?? {};
+          final contentDetails = item['contentDetails'] ?? {};
+
+          return {
+            'playlistId': item['id'],
+            'title': snippet['title'] ?? 'Untitled',
+            'description': snippet['description'] ?? '',
+            'thumbnail': snippet['thumbnails']?['medium']?['url'] ??
+                        snippet['thumbnails']?['default']?['url'] ??
+                        '',
+            'videoCount': contentDetails['itemCount'] ?? 0,
+            'publishedAt': snippet['publishedAt'] ?? '',
+          };
+        }).toList();
+
+        print('✅ Fetched ${playlists.length} playlists');
+        return playlists;
+      } else {
+        print('❌ Playlists API Error: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Error fetching playlists: $e');
+      return [];
+    }
+  }
+
+  /// 🎬 Fetch Videos from Playlist - REAL DATA! 🔥
+  static Future<List<Map<String, dynamic>>> fetchPlaylistVideos(
+    String playlistId, {
+    int maxResults = 50,
+    String? pageToken,
+  }) async {
+    try {
+      print('🎬 Fetching videos from playlist: $playlistId');
+
+      String url =
+          '$_baseUrl/playlistItems?part=snippet&playlistId=$playlistId&maxResults=$maxResults&key=$_apiKey';
+      if (pageToken != null) {
+        url += '&pageToken=$pageToken';
+      }
+
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['items'] as List<dynamic>? ?? [];
+
+        // Get video IDs to fetch statistics
+        final videoIds = items
+            .where((item) => item['snippet']?['resourceId']?['videoId'] != null)
+            .map((item) => item['snippet']['resourceId']['videoId'] as String)
+            .toList();
+
+        // Fetch video details with statistics
+        List<Map<String, dynamic>> videosWithStats = [];
+        if (videoIds.isNotEmpty) {
+          videosWithStats = await _fetchVideosWithStatsByIds(videoIds);
+        }
+
+        // Map playlist positions
+        final videos = items.asMap().entries.map((entry) {
+          final index = entry.key;
+          final item = entry.value;
+          final snippet = item['snippet'] ?? {};
+          final videoId = snippet['resourceId']?['videoId'];
+
+          // Find matching stats
+          final stats = videosWithStats.firstWhere(
+            (v) => v['videoId'] == videoId,
+            orElse: () => {},
+          );
+
+          return {
+            'videoId': videoId ?? '',
+            'title': stats['title'] ?? snippet['title'] ?? 'No Title',
+            'thumbnail': stats['thumbnail'] ??
+                        snippet['thumbnails']?['high']?['url'] ??
+                        snippet['thumbnails']?['medium']?['url'] ??
+                        snippet['thumbnails']?['default']?['url'] ??
+                        '',
+            'position': snippet['position'] ?? index,
+            'views': stats['views'] ?? '0 views',
+            'duration': stats['duration'] ?? '0:00',
+            'description': stats['description'] ?? snippet['description'] ?? '',
+          };
+        }).toList();
+
+        print('✅ Fetched ${videos.length} videos from playlist');
+        return videos;
+      } else {
+        print('❌ Playlist Videos API Error: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Error fetching playlist videos: $e');
+      return [];
+    }
+  }
+
+  /// 📢 Fetch Community Posts - CHANNEL ACTIVITIES! 🔥
+  static Future<List<Map<String, dynamic>>> fetchCommunityPosts({
+    int maxResults = 20,
+  }) async {
+    try {
+      print('📢 Fetching community posts...');
+
+      // Fetch channel activities (includes uploads, posts, etc)
+      final response = await http.get(
+        Uri.parse(
+          '$_baseUrl/activities?part=snippet,contentDetails&channelId=$_channelId&maxResults=$maxResults&key=$_apiKey',
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['items'] as List<dynamic>? ?? [];
+
+        final posts = items.map((item) {
+          final snippet = item['snippet'] ?? {};
+          final contentDetails = item['contentDetails'] ?? {};
+
+          // Check if it's a video upload or other activity
+          final type = snippet['type'] ?? 'upload';
+          final title = snippet['title'] ?? 'No Title';
+          final description = snippet['description'] ?? '';
+          final publishedAt = snippet['publishedAt'] ?? '';
+          
+          // Get thumbnails if available
+          final thumbnails = snippet['thumbnails'];
+          String thumbnail = '';
+          if (thumbnails != null) {
+            thumbnail = thumbnails['high']?['url'] ??
+                       thumbnails['medium']?['url'] ??
+                       thumbnails['default']?['url'] ??
+                       '';
+          }
+
+          // Get video ID if it's an upload
+          String videoId = '';
+          if (type == 'upload' && contentDetails['upload'] != null) {
+            videoId = contentDetails['upload']['videoId'] ?? '';
+          }
+
+          return {
+            'postId': item['id'],
+            'type': type,
+            'title': title,
+            'description': description,
+            'thumbnail': thumbnail,
+            'videoId': videoId,
+            'publishedAt': publishedAt,
+            'channelTitle': snippet['channelTitle'] ?? 'Leonardo Butindi',
+            'channelAvatar': snippet['thumbnails']?['default']?['url'] ?? '',
+          };
+        }).toList();
+
+        print('✅ Fetched ${posts.length} community posts');
+        return posts;
+      } else {
+        print('❌ Community API Error: ${response.statusCode}');
+        print('Response: ${response.body}');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Error fetching community posts: $e');
+      return [];
     }
   }
 }

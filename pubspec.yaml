@@ -41,6 +41,9 @@ dependencies:
   
   # WebView for YouTube Channel - BEST & SIMPLE OPTION
   webview_flutter: ^4.7.0
+  
+  # Share functionality - SHARE TO OTHER APPS!
+  share_plus: ^13.0.0
 
 dev_dependencies:
   flutter_test:
@@ -99,12 +102,18 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
 # Flutter Launcher Icons - KVZR POWER CONFIG
+# App icon using Leonardo Butindi Channel Avatar 🔥
 flutter_launcher_icons:
-  android: "launcher_icon"
+  android: true
   ios: true
   image_path: "assets/icons/channels4_profile.jpg"
   min_sdk_android: 21
   remove_alpha_ios: true
+  # Adaptive icon for Android - round to match avatar
+  adaptive_icon_background: "#E53935"
+  adaptive_icon_foreground: "assets/icons/channels4_profile.jpg"
+  # iOS settings
+  ios_icon_name: "AppIcon"
   
   # Web
   web:
@@ -117,7 +126,7 @@ flutter_launcher_icons:
   windows:
     generate: true
     image_path: "assets/icons/channels4_profile.jpg"
-    icon_size: 48
+    icon_size: 256
   
   # macOS
   macos:

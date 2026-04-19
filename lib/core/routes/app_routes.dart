@@ -4,6 +4,7 @@ import '../../features/channel/channel_screen.dart';
 import '../../features/playlists/playlists_screen.dart';
 import '../../features/movies/movies_screen.dart';
 import '../../features/player/player_screen.dart';
+import '../../features/player/comments_screen.dart';
 
 class AppRoutes {
   static const String home = '/';
@@ -11,6 +12,7 @@ class AppRoutes {
   static const String playlists = '/playlists';
   static const String movies = '/movies';
   static const String player = '/player';
+  static const String comments = '/comments';
 
   static Map<String, WidgetBuilder> get routes => {
     home: (context) => const HomeScreen(),
