@@ -40,7 +40,7 @@ class ChannelScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'KVZR Channel',
+                          AppStrings.channelName,
                           style: TextStyle(
                             color: AppColors.onBackground,
                             fontSize: 24,
@@ -49,7 +49,7 @@ class ChannelScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '1.2M subscribers',
+                          '${AppStrings.channelHandle} • ${AppStrings.channelSubscribers}',
                           style: TextStyle(
                             color: AppColors.onSurface,
                             fontSize: 16,
@@ -125,9 +125,31 @@ class ChannelScreen extends StatelessWidget {
   Widget _buildAboutTab() {
     return const Padding(
       padding: EdgeInsets.all(16),
-      child: Text(
-        'Welcome to KVZR Channel. Powered by Leonardo App.',
-        style: TextStyle(color: AppColors.onSurface),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Welcome to Leonardo Butindi official channel.',
+            style: TextStyle(
+              color: AppColors.onBackground,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Powered by Leonardo App - KVZR',
+            style: TextStyle(color: AppColors.onSurface),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'YouTube: ${AppStrings.channelUrl}',
+            style: TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }

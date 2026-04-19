@@ -99,7 +99,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                'KVZR Channel',
+                                AppStrings.channelName,
                                 style: TextStyle(
                                   color: AppColors.onBackground,
                                   fontSize: 16,
@@ -107,7 +107,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                 ),
                               ),
                               Text(
-                                '1.2M subscribers',
+                                '${AppStrings.channelHandle} • ${AppStrings.channelSubscribers}',
                                 style: TextStyle(
                                   color: AppColors.onSurface,
                                   fontSize: 14,
@@ -171,8 +171,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          const Text(
-                            'Powered by Leonardo App - KVZR\\nWatch more amazing content on our channel!',
+                          Text(
+                            'Powered by Leonardo App - KVZR\nChannel: ${AppStrings.channelUrl}\nWatch more amazing content!',
                             style: TextStyle(color: AppColors.onSurface),
                           ),
                         ],

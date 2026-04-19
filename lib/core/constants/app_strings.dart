@@ -2,6 +2,12 @@ class AppStrings {
   static const String appName = 'Leonardo';
   static const String poweredBy = 'Powered by KVZR';
   
+  // Channel
+  static const String channelName = 'Leonardo Butindi';
+  static const String channelHandle = '@leonardobutindi';
+  static const String channelUrl = 'youtube.com/@leonardobutindi';
+  static const String channelSubscribers = '1.2M subscribers';
+  
   // Navigation
   static const String home = 'Home';
   static const String channel = 'Channel';
