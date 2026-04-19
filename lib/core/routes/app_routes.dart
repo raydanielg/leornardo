@@ -1,0 +1,22 @@
+import 'package:flutter/material.dart';
+import '../../features/home/home_screen.dart';
+import '../../features/channel/channel_screen.dart';
+import '../../features/playlists/playlists_screen.dart';
+import '../../features/movies/movies_screen.dart';
+import '../../features/player/player_screen.dart';
+
+class AppRoutes {
+  static const String home = '/';
+  static const String channel = '/channel';
+  static const String playlists = '/playlists';
+  static const String movies = '/movies';
+  static const String player = '/player';
+
+  static Map<String, WidgetBuilder> get routes => {
+    home: (context) => const HomeScreen(),
+    channel: (context) => const ChannelScreen(),
+    playlists: (context) => const PlaylistsScreen(),
+    movies: (context) => const MoviesScreen(),
+    player: (context) => const PlayerScreen(),
+  };
+}
