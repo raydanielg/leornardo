@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_colors.dart';
 import '../../services/youtube_api_service.dart';
 import 'comments_screen.dart';
@@ -94,9 +95,12 @@ class _ReelsPlayerState extends State<ReelsPlayer> {
   }
 
   void _onPageChanged(int index) {
+    print('📄 Page changed to: $index');
+
     // Pause previous video
     if (_controllers.containsKey(_currentIndex)) {
       _controllers[_currentIndex]?.pause();
+      print('⏸️ Paused video at index: $_currentIndex');
     }
 
     setState(() {
@@ -107,24 +111,33 @@ class _ReelsPlayerState extends State<ReelsPlayer> {
     // Play current video
     if (_controllers.containsKey(index)) {
       _controllers[index]?.play();
+      print('▶️ Playing video at index: $index');
+    } else {
+      // Initialize controller if not exists
+      _initializeController(index);
+      _controllers[index]?.play();
     }
 
-    // Initialize next and previous controllers
+    // Initialize next and previous controllers (preloading)
     _initializeController(index + 1);
     _initializeController(index - 1);
 
-    // Dispose controllers that are far away
+    // Dispose controllers that are far away (memory management)
     for (var key in _controllers.keys.toList()) {
       if ((key - index).abs() > 2) {
         _disposeController(key);
+        print('🗑️ Disposed controller at index: $key');
       }
     }
+
+    print('✅ Now showing video ${index + 1} of ${widget.reels.length}');
   }
 
   void _toggleLike() {
     setState(() {
       _isLiked = !_isLiked;
     });
+    print(_isLiked ? '❤️ Liked!' : '🤍 Unliked');
   }
 
   void _toggleSubscribe() {
@@ -138,28 +151,49 @@ class _ReelsPlayerState extends State<ReelsPlayer> {
     final videoId = currentReel['videoId'] as String? ?? '';
     final title = currentReel['title'] as String? ?? 'Reel';
 
+    // 🔥 TikTok Style Comments - Slide up from bottom
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
+        initialChildSize: 0.65,
         minChildSize: 0.3,
         maxChildSize: 0.9,
         expand: false,
         builder: (context, scrollController) {
           return Container(
-            decoration: const BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.95),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.1),
+                width: 1,
+              ),
             ),
-            child: CommentsScreen(
-              videoId: videoId,
-              videoTitle: title,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              child: CommentsScreen(
+                videoId: videoId,
+                videoTitle: title,
+              ),
             ),
           );
         },
       ),
+    );
+  }
+
+  void _shareVideo() {
+    final currentReel = widget.reels[_currentIndex];
+    final videoId = currentReel['videoId'] as String? ?? '';
+    final title = currentReel['title'] as String? ?? 'Check out this reel';
+    final videoUrl = 'https://youtube.com/shorts/$videoId';
+
+    // 🔥 SHARE TO APPS - WhatsApp, Instagram, Status, etc!
+    Share.share(
+      '$title\n\n$videoUrl\n\nShared from Leonardo App 🔥',
+      subject: 'Leonardo Reel',
     );
   }
 
@@ -169,10 +203,13 @@ class _ReelsPlayerState extends State<ReelsPlayer> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // PageView for vertical swiping
+          // PageView for vertical swiping - TikTok Style! 🔥
           PageView.builder(
             controller: _pageController,
             scrollDirection: Axis.vertical,
+            physics: const BouncingScrollPhysics(), // Smooth bounce effect kama TikTok
+            pageSnapping: true, // Snap to page kama TikTok
+            allowImplicitScrolling: true,
             onPageChanged: _onPageChanged,
             itemCount: widget.reels.length,
             itemBuilder: (context, index) {
@@ -180,59 +217,82 @@ class _ReelsPlayerState extends State<ReelsPlayer> {
             },
           ),
 
-          // Top bar
+          // 🔥 Scroll Indicator (dots) - Shows position
+          if (widget.reels.length > 1)
+            Positioned(
+              right: 0,
+              top: MediaQuery.of(context).size.height * 0.4,
+              child: Container(
+                margin: const EdgeInsets.only(right: 4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(
+                    widget.reels.length > 10 ? 10 : widget.reels.length,
+                    (index) {
+                      final isActive = index == _currentIndex;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        margin: const EdgeInsets.symmetric(vertical: 2),
+                        width: 4,
+                        height: isActive ? 20 : 8,
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? Colors.white
+                              : Colors.white.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+
+          // 🔙 Back Button only (minimal)
           Positioned(
             top: 0,
             left: 0,
-            right: 0,
             child: SafeArea(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(
-                        Icons.arrow_back,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const Spacer(),
-                    const Text(
-                      'Reels',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () {},
-                      icon: const Icon(
-                        Icons.camera_alt_outlined,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
+              child: IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(
+                  Icons.arrow_back,
+                  color: Colors.white,
+                  size: 28,
                 ),
               ),
             ),
           ),
 
-          // Right side actions
+          // Right side actions - with pointer absorption for smooth scrolling
           Positioned(
             right: 8,
             bottom: 100,
-            child: _buildRightActions(),
+            child: AbsorbPointer(
+              absorbing: false, // Allow gestures to pass through to PageView
+              child: AnimatedBuilder(
+                animation: _pageController,
+                builder: (context, child) {
+                  return _buildRightActions();
+                },
+              ),
+            ),
           ),
 
-          // Bottom info
+          // Bottom info - allow scroll through but capture taps
           Positioned(
             left: 16,
             right: 80,
             bottom: 20,
-            child: _buildBottomInfo(),
+            child: AbsorbPointer(
+              absorbing: false,
+              child: AnimatedBuilder(
+                animation: _pageController,
+                builder: (context, child) {
+                  return _buildBottomInfo();
+                },
+              ),
+            ),
           ),
         ],
       ),
@@ -243,6 +303,7 @@ class _ReelsPlayerState extends State<ReelsPlayer> {
     final reel = widget.reels[index];
     final videoId = reel['videoId'] as String? ?? '';
     final thumbnail = reel['thumbnail'] as String? ?? '';
+    final isCurrentIndex = index == _currentIndex;
 
     // Initialize controller if not exists
     if (!_controllers.containsKey(index)) {
@@ -256,19 +317,27 @@ class _ReelsPlayerState extends State<ReelsPlayer> {
       children: [
         // Video Player or Thumbnail
         controller != null
-            ? YoutubePlayer(
-                controller: controller,
-                showVideoProgressIndicator: true,
-                progressIndicatorColor: AppColors.primary,
-                progressColors: const ProgressBarColors(
-                  playedColor: AppColors.primary,
-                  handleColor: AppColors.accent,
-                ),
-                onReady: () {
-                  if (index == _currentIndex) {
+            ? GestureDetector(
+                onTap: () {
+                  // 🔥 Tap to pause/play video
+                  if (controller.value.isPlaying) {
+                    controller.pause();
+                    print('⏸️ Video paused');
+                  } else {
                     controller.play();
+                    print('▶️ Video playing');
                   }
                 },
+                behavior: HitTestBehavior.translucent, // Allow scroll gestures
+                child: YoutubePlayer(
+                  controller: controller,
+                  showVideoProgressIndicator: false, // Hide default, use custom
+                  onReady: () {
+                    if (isCurrentIndex) {
+                      controller.play();
+                    }
+                  },
+                ),
               )
             : Container(
                 color: Colors.black,
@@ -305,6 +374,28 @@ class _ReelsPlayerState extends State<ReelsPlayer> {
             ),
           ),
         ),
+
+        // 🔥 Progress Bar at bottom
+        if (controller != null && isCurrentIndex)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              height: 3,
+              color: Colors.white.withOpacity(0.3),
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: controller.value.position.inMilliseconds /
+                    (controller.value.metaData.duration.inMilliseconds > 0
+                        ? controller.value.metaData.duration.inMilliseconds
+                        : 1),
+                child: Container(
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -313,59 +404,148 @@ class _ReelsPlayerState extends State<ReelsPlayer> {
     final currentReel = widget.reels[_currentIndex];
     final likes = currentReel['likeCount'] ?? '0';
     final comments = currentReel['commentCount'] ?? '0';
+    final views = currentReel['views'] as String? ?? '0 views';
+
+    print('🔄 Updating actions for video $_currentIndex: ❤️ $likes | 💬 $comments | 👁 $views');
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Like
-        _buildActionButton(
+        // Profile Picture with follow button
+        Stack(
+          alignment: Alignment.bottomCenter,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                image: const DecorationImage(
+                  image: AssetImage('assets/icons/channels4_profile.jpg'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            Container(
+              width: 20,
+              height: 20,
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.add,
+                color: Colors.white,
+                size: 14,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        // Like - TikTok Style
+        _buildTikTokActionButton(
           _isLiked ? Icons.favorite : Icons.favorite_border,
-          likes.toString(),
+          _formatNumber(likes),
           onTap: _toggleLike,
           color: _isLiked ? Colors.red : Colors.white,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         // Comment
-        _buildActionButton(
+        _buildTikTokActionButton(
           Icons.comment,
-          comments.toString(),
+          _formatNumber(comments),
           onTap: _showComments,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         // Share
-        _buildActionButton(
-          Icons.share,
+        _buildTikTokActionButton(
+          Icons.reply,
           'Share',
-          onTap: () {
-            final videoId = currentReel['videoId'] as String? ?? '';
-            final title = currentReel['title'] as String? ?? 'Check this reel';
-            // TODO: Implement share
-          },
+          onTap: () => _shareVideo(),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         // More options
-        _buildActionButton(
+        _buildTikTokActionButton(
           Icons.more_vert,
           '',
           onTap: () {},
         ),
-        const SizedBox(height: 16),
-        // Music/Spinning disc
+        const SizedBox(height: 20),
+        // Spinning Music Disc
         Container(
-          width: 48,
-          height: 48,
+          width: 50,
+          height: 50,
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.5),
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 2),
+            image: const DecorationImage(
+              image: AssetImage('assets/icons/channels4_profile.jpg'),
+              fit: BoxFit.cover,
+            ),
           ),
-          child: const Icon(
-            Icons.music_note,
-            color: Colors.white,
-            size: 24,
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.black.withOpacity(0.3),
+            ),
+            child: const Icon(
+              Icons.music_note,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  String _formatNumber(dynamic number) {
+    if (number == null) return '0';
+    if (number is String) return number;
+    final num = number as int;
+    if (num >= 1000000) {
+      return '${(num / 1000000).toStringAsFixed(1)}M';
+    } else if (num >= 1000) {
+      return '${(num / 1000).toStringAsFixed(1)}K';
+    }
+    return num.toString();
+  }
+
+  Widget _buildTikTokActionButton(
+    IconData icon,
+    String label, {
+    required VoidCallback onTap,
+    Color color = Colors.white,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.translucent, // Allow scroll to pass through
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // TikTok style - no background circle, just the icon
+          Container(
+            padding: const EdgeInsets.all(8), // Larger hit area
+            child: Icon(
+              icon,
+              color: color,
+              size: 35,
+            ),
+          ),
+          if (label.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -412,89 +592,180 @@ class _ReelsPlayerState extends State<ReelsPlayer> {
   Widget _buildBottomInfo() {
     final currentReel = widget.reels[_currentIndex];
     final title = currentReel['title'] as String? ?? 'Reel';
+    final description = currentReel['description'] as String? ?? '';
     final views = currentReel['views'] as String? ?? '0 views';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Channel info with subscribe
+        // Channel info - TikTok Style (@username)
         Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: AppColors.primary,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(4),
               ),
-              child: const Center(
-                child: Text(
-                  'LB',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '@leonardobutindi',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
                   ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'Leonardo Butindi',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-              ),
-            ),
-            const SizedBox(width: 12),
-            GestureDetector(
-              onTap: _toggleSubscribe,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: _isSubscribed ? Colors.transparent : Colors.white,
-                  borderRadius: BorderRadius.circular(4),
-                  border: _isSubscribed
-                      ? Border.all(color: Colors.white)
-                      : null,
-                ),
-                child: Text(
-                  _isSubscribed ? 'Subscribed' : 'Subscribe',
-                  style: TextStyle(
-                    color: _isSubscribed ? Colors.white : Colors.black,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.verified,
+                    color: Colors.blue,
+                    size: 14,
                   ),
-                ),
+                ],
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        // Title
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
+        const SizedBox(height: 8),
+        // Title with hashtags - TikTok Style
+        GestureDetector(
+          onTap: () {
+            // 🔥 Tap to expand description
+            _showFullDescription(title, description);
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (description.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.8),
+                    fontSize: 13,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+              const SizedBox(height: 4),
+              Text(
+                'more',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.6),
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: 4),
-        // Views
-        Text(
-          views,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.8),
-            fontSize: 13,
-          ),
+        const SizedBox(height: 8),
+        // Music/Marquee - TikTok Style with animation
+        Row(
+          children: [
+            const Icon(
+              Icons.music_note,
+              color: Colors.white,
+              size: 16,
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                'Original Sound - Leonardo Butindi 🔥',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 13,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ],
+    );
+  }
+
+  void _showFullDescription(String title, String description) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.95),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (description.isNotEmpty)
+              Text(
+                description,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+            const SizedBox(height: 20),
+            // Action buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _shareVideo(),
+                    icon: const Icon(Icons.share, color: Colors.white),
+                    label: const Text(
+                      'Share',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -142,18 +142,22 @@ class YouTubeApiService {
           final snippet = item['snippet'];
           final stats = item['statistics'];
           final content = item['contentDetails'];
-          
+
           // Format duration from PT4M13S to 4:13
-          String duration = _formatDuration(content['duration'] ?? 'PT0M0S');
-          
+          final isoDuration = content['duration'] ?? 'PT0M0S';
+          String duration = _formatDuration(isoDuration);
+
+          // Calculate total seconds for Shorts filtering (METHOD 1: BY DURATION)
+          int durationSeconds = _getTotalSeconds(isoDuration);
+
           // Format view count - REAL VIEWS!
           String views = _formatViewCount(stats['viewCount'] ?? '0');
-          
+
           // Get best thumbnail
-          String thumbnail = snippet['thumbnails']['high']?['url'] ?? 
-                            snippet['thumbnails']['medium']?['url'] ?? 
+          String thumbnail = snippet['thumbnails']['high']?['url'] ??
+                            snippet['thumbnails']['medium']?['url'] ??
                             snippet['thumbnails']['default']?['url'];
-          
+
           return {
             'videoId': item['id'],
             'title': snippet['title'],
@@ -161,6 +165,7 @@ class YouTubeApiService {
             'thumbnail': thumbnail,
             'views': '$views views',
             'duration': duration,
+            'durationSeconds': durationSeconds, // For Shorts filtering!
             'publishedAt': snippet['publishedAt'],
             'description': snippet['description'],
             'likeCount': _formatViewCount(stats['likeCount'] ?? '0'),
@@ -297,24 +302,28 @@ class YouTubeApiService {
           final snippet = item['snippet'];
           final stats = item['statistics'];
           final content = item['contentDetails'];
-          
+
           // Format duration from PT4M13S to 4:13
-          String duration = content['duration'] ?? 'PT0M0S';
-          duration = _formatDuration(duration);
-          
+          final isoDuration = content['duration'] ?? 'PT0M0S';
+          String duration = _formatDuration(isoDuration);
+
+          // Calculate total seconds for Shorts filtering (METHOD 1: BY DURATION)
+          int durationSeconds = _getTotalSeconds(isoDuration);
+
           // Format view count
           String views = stats['viewCount'] ?? '0';
           views = _formatViewCount(views);
-          
+
           return {
             'videoId': item['id'],
             'title': snippet['title'],
             'channel': snippet['channelTitle'],
-            'thumbnail': snippet['thumbnails']['high']?['url'] ?? 
-                        snippet['thumbnails']['medium']?['url'] ?? 
+            'thumbnail': snippet['thumbnails']['high']?['url'] ??
+                        snippet['thumbnails']['medium']?['url'] ??
                         snippet['thumbnails']['default']?['url'],
             'views': '$views views',
             'duration': duration,
+            'durationSeconds': durationSeconds, // For Shorts filtering!
             'publishedAt': snippet['publishedAt'],
           };
         }).toList();
@@ -348,19 +357,26 @@ class YouTubeApiService {
           final snippet = item['snippet'];
           final stats = item['statistics'];
           final content = item['contentDetails'];
-          
-          String duration = _formatDuration(content['duration'] ?? 'PT0M0S');
+
+          // Format duration from PT4M13S to 4:13
+          final isoDuration = content['duration'] ?? 'PT0M0S';
+          String duration = _formatDuration(isoDuration);
+
+          // Calculate total seconds for Shorts filtering (METHOD 1: BY DURATION)
+          int durationSeconds = _getTotalSeconds(isoDuration);
+
           String views = _formatViewCount(stats['viewCount'] ?? '0');
-          
+
           return {
             'videoId': item['id'],
             'title': snippet['title'],
             'channel': snippet['channelTitle'],
-            'thumbnail': snippet['thumbnails']['high']?['url'] ?? 
-                        snippet['thumbnails']['medium']?['url'] ?? 
+            'thumbnail': snippet['thumbnails']['high']?['url'] ??
+                        snippet['thumbnails']['medium']?['url'] ??
                         snippet['thumbnails']['default']?['url'],
             'views': '$views views',
             'duration': duration,
+            'durationSeconds': durationSeconds, // For Shorts filtering!
           };
         }).toList();
       } else {
@@ -378,17 +394,34 @@ class YouTubeApiService {
     // PT1H2M3S -> 1:02:03
     final regex = RegExp(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?');
     final match = regex.firstMatch(isoDuration);
-    
+
     if (match == null) return '0:00';
-    
+
     final hours = int.tryParse(match.group(1) ?? '0') ?? 0;
     final minutes = int.tryParse(match.group(2) ?? '0') ?? 0;
     final seconds = int.tryParse(match.group(3) ?? '0') ?? 0;
-    
+
     if (hours > 0) {
       return '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     }
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  // Helper: Calculate total seconds from ISO duration (for Shorts filtering)
+  static int _getTotalSeconds(String isoDuration) {
+    // PT45S -> 45 seconds
+    // PT1M30S -> 90 seconds
+    // PT1H2M3S -> 3723 seconds
+    final regex = RegExp(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?');
+    final match = regex.firstMatch(isoDuration);
+
+    if (match == null) return 0;
+
+    final hours = int.tryParse(match.group(1) ?? '0') ?? 0;
+    final minutes = int.tryParse(match.group(2) ?? '0') ?? 0;
+    final seconds = int.tryParse(match.group(3) ?? '0') ?? 0;
+
+    return (hours * 3600) + (minutes * 60) + seconds;
   }
 
   // Helper: Format view count
@@ -479,21 +512,22 @@ class YouTubeApiService {
   /// 🎬 Fetch Reels (Shorts) - YouTube Shorts Style! 🔥
   /// Videos with duration < 60 seconds
   static Future<List<Map<String, dynamic>>> fetchReels({
-    int maxResults = 20,
+    int maxResults = 50,
   }) async {
     try {
       print('🎬 Fetching Reels (Shorts)...');
 
-      // Fetch videos from channel
+      // Fetch MORE videos from channel to find shorts
       final searchResponse = await http.get(
         Uri.parse(
-          '$_baseUrl/search?part=snippet&channelId=$_channelId&maxResults=50&order=date&type=video&key=$_apiKey',
+          '$_baseUrl/search?part=snippet&channelId=$_channelId&maxResults=100&order=date&type=video&key=$_apiKey',
         ),
       );
 
       if (searchResponse.statusCode == 200) {
         final searchData = json.decode(searchResponse.body);
         final items = searchData['items'] as List<dynamic>;
+        print('📊 Found ${items.length} total videos from channel');
 
         // Get video IDs
         final videoIds = items
@@ -504,21 +538,25 @@ class YouTubeApiService {
 
         // Fetch video details with contentDetails to check duration
         final videosWithDetails = await _fetchVideosWithStatsByIds(videoIds);
+        print('📊 Got details for ${videosWithDetails.length} videos');
 
-        // Filter short videos (duration < 60 seconds typically, but we check for shorts style)
-        // YouTube Shorts are typically vertical 9:16 and < 60 seconds
+        // 🎯 METHOD 1: BY DURATION - Filter Shorts under 180 seconds (3 min)
+        // YouTube Shorts = videos with duration <= 180 seconds (3 minutes)
+        // NOTE: Leonardo channel has few true shorts, so we include short videos too
         final reels = videosWithDetails.where((video) {
-          final duration = video['duration'] as String? ?? '0:00';
-          // Check if duration is short (less than 1 minute)
-          final parts = duration.split(':');
-          if (parts.length == 2) {
-            final minutes = int.tryParse(parts[0]) ?? 0;
-            return minutes == 0; // Less than 1 minute
+          final durationSeconds = video['durationSeconds'] as int? ?? 0;
+          // Include videos up to 3 minutes to get more content
+          final isShort = durationSeconds > 0 && durationSeconds <= 180;
+          if (isShort) {
+            print('✅ Found Short Video: ${video['title']} - ${video['duration']} (${durationSeconds}s)');
+          } else {
+            print('⏭️ Skipped (too long): ${video['title']} - ${video['duration']} (${durationSeconds}s)');
           }
-          return false;
+          return isShort;
         }).take(maxResults).toList();
 
-        print('✅ Fetched ${reels.length} reels');
+        print('✅ Total Reels Fetched: ${reels.length} (filtered from ${videosWithDetails.length} videos)');
+        print('💡 Tip: Leonardo channel has ${videosWithDetails.length} videos, but only ${reels.length} are under 3 minutes');
         return reels;
       } else {
         print('❌ Reels API Error: ${searchResponse.statusCode}');
@@ -699,6 +737,7 @@ class YouTubeApiService {
             'position': snippet['position'] ?? index,
             'views': stats['views'] ?? '0 views',
             'duration': stats['duration'] ?? '0:00',
+            'durationSeconds': stats['durationSeconds'] ?? 0, // For Shorts filtering!
             'description': stats['description'] ?? snippet['description'] ?? '',
           };
         }).toList();
