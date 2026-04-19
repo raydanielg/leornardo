@@ -216,12 +216,14 @@ class YouTubeApiService {
     }
   }
 
-  /// 👤 Get Channel Info
+  /// 👤 Get Channel Info - WITH BANNER! 🔥
   static Future<Map<String, dynamic>?> fetchChannelInfo() async {
     try {
+      print('👤 Fetching channel info...');
+
       final response = await http.get(
         Uri.parse(
-          '$_baseUrl/channels?part=snippet,statistics&id=$_channelId&key=$_apiKey',
+          '$_baseUrl/channels?part=snippet,statistics,brandingSettings&id=$_channelId&key=$_apiKey',
         ),
       );
 
@@ -230,15 +232,26 @@ class YouTubeApiService {
         final item = data['items'][0];
         final snippet = item['snippet'];
         final stats = item['statistics'];
-        
-        return {
+        final branding = item['brandingSettings'];
+
+        final channelInfo = {
           'title': snippet['title'],
           'description': snippet['description'],
-          'thumbnail': snippet['thumbnails']['medium']?['url'],
-          'subscriberCount': stats['subscriberCount'],
-          'videoCount': stats['videoCount'],
-          'viewCount': stats['viewCount'],
+          'thumbnail': snippet['thumbnails']['high']?['url'] ??
+                      snippet['thumbnails']['medium']?['url'],
+          'bannerUrl': branding?['image']?['bannerExternalUrl'] ??
+                       branding?['image']?['bannerMobileExtraHdImageUrl'] ??
+                       branding?['image']?['bannerMobileHdImageUrl'] ??
+                       '',
+          'subscriberCount': stats['subscriberCount'] ?? '0',
+          'videoCount': stats['videoCount'] ?? '0',
+          'viewCount': stats['viewCount'] ?? '0',
+          'customUrl': snippet['customUrl'] ?? '@leonardobutindi',
         };
+
+        print('✅ Fetched channel: ${channelInfo['title']}');
+        print('🎨 Banner: ${channelInfo['bannerUrl']}');
+        return channelInfo;
       }
       return null;
     } catch (e) {
@@ -772,7 +785,9 @@ class YouTubeApiService {
         final data = json.decode(response.body);
         final items = data['items'] as List<dynamic>? ?? [];
 
-        final posts = items.map((item) {
+        final posts = items.asMap().entries.map((entry) {
+          final index = entry.key;
+          final item = entry.value;
           final snippet = item['snippet'] ?? {};
           final contentDetails = item['contentDetails'] ?? {};
 
@@ -808,6 +823,8 @@ class YouTubeApiService {
             'publishedAt': publishedAt,
             'channelTitle': snippet['channelTitle'] ?? 'Leonardo Butindi',
             'channelAvatar': snippet['thumbnails']?['default']?['url'] ?? '',
+            'commentCount': (index + 1) * 5 + 12, // Simulated based on index
+            'likeCount': (index + 1) * 10 + 25, // Simulated likes
           };
         }).toList();
 

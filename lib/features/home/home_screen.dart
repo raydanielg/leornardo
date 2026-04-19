@@ -7,6 +7,7 @@ import '../../services/youtube_api_service.dart';
 import '../player/player_screen.dart';
 import '../player/reels_player.dart';
 import '../channel/channel_webview_screen.dart';
+import '../profile/profile_screen.dart';
 import '../community/community_screen.dart';
 import '../playlists/playlists_screen.dart';
 import 'home_controller.dart';
@@ -27,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
     const _ReelsContent(),
     const _PlaylistsContent(),
     const _CommunityContent(),
+    const _ProfileContent(),
   ];
 
   @override
@@ -53,6 +55,10 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(Icons.people_outline),
             label: 'Community',
           ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            label: 'Profile',
+          ),
         ],
       ),
     );
@@ -74,6 +80,8 @@ class _HomeContentState extends State<_HomeContent> {
   List<Map<String, dynamic>> _videos = [];
   final HomeController _controller = HomeController();
   final ScrollController _scrollController = ScrollController();
+  // ✅ Track watched videos in memory
+  final Set<String> _watchedVideos = {};
 
   @override
   void initState() {
@@ -196,18 +204,24 @@ class _HomeContentState extends State<_HomeContent> {
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final video = videos[index];
+                      final videoId = video['videoId']?.toString() ?? '';
                       return VideoCard(
                         thumbnailUrl: video['thumbnail']?.toString() ?? '',
                         title: video['title']?.toString() ?? 'No Title',
                         channelName: video['channel']?.toString() ?? 'Unknown',
                         viewCount: video['views']?.toString() ?? '0 views',
                         duration: video['duration']?.toString() ?? '0:00',
+                        isWatched: _watchedVideos.contains(videoId),
                         onTap: () {
+                          // ✅ Mark as watched
+                          setState(() {
+                            _watchedVideos.add(videoId);
+                          });
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => PlayerScreen(
-                                videoId: video['videoId']?.toString() ?? '',
+                                videoId: videoId,
                                 title: video['title']?.toString() ?? '',
                               ),
                             ),
@@ -385,6 +399,15 @@ class _CommunityContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const CommunityScreen();
+  }
+}
+
+class _ProfileContent extends StatelessWidget {
+  const _ProfileContent();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ProfileScreen();
   }
 }
 

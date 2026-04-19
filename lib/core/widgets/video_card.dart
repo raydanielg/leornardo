@@ -8,6 +8,7 @@ class VideoCard extends StatelessWidget {
   final String viewCount;
   final String duration;
   final VoidCallback onTap;
+  final bool isWatched;
 
   const VideoCard({
     super.key,
@@ -17,6 +18,7 @@ class VideoCard extends StatelessWidget {
     required this.viewCount,
     required this.duration,
     required this.onTap,
+    this.isWatched = false,
   });
 
   @override
@@ -80,6 +82,39 @@ class VideoCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                // ✅ Watched indicator
+                if (isWatched)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(12),
+                        ),
+                      ),
+                      child: const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              color: Colors.white,
+                              size: 40,
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'WATCHED',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
             // Info
